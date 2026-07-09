@@ -16,6 +16,26 @@ This demo proves that AI requires persistent database memory to be context-aware
 
 ---
 
+## 💬 Sample Conversations & Prompt Contexts
+
+### 1. In-Character Emotion Matching
+- **Player Input (Hiro)**: `"Can you see the dragon?"`
+- **AI Companion Response**: `"N-not yet, Hiro! [shivers slightly] I hope it's still far away! [nervous squeak]"`
+- **Parsed Emotion Tag**: `[shivers slightly]` (instantly rendered as a visual emotion badge in the chat window).
+- **Spanner Action**: Logs a new `Dialogue_Edges` record and automatically increments the relationship bond points by `+25` in a Spanner read-write transaction.
+
+### 2. Historical Memory Recall & Quest Context
+- **Player Input (Sofia)**: `"Aria, do you sense the presence of the Crown nearby?"`
+- **AI Companion Response**: `"Yes, Sofia. The winds whisper of its ancient holy warmth. [thoughtful] It lies just beyond these stone arches."`
+- **Spanner Action**: Uses Spanner Graph GQL (`MATCH` query) to join Sofia's profile details and active quest description before prompting Gemini.
+
+### 3. Multi-Companion Personality Routing
+- **Player Input (Marcus)**: `"The Demon King is ahead. Ready, Ignis?"`
+- **AI Companion Response (Ignis)**: `"Fwah! Let him come! [excited] I will melt his dark armor to slag!"`
+- **Spanner Action**: Resolves the player-companion node relation to load Ignis's specific red-drake hatchling personality instructions.
+
+---
+
 ## 🛠️ Key Capabilities & Features
 
 1. **Obsidian Glassmorphic Gaming UI**: A premium dark-navy gaming dashboard built in React featuring animated character profile cards, active quest trackers, live chat interfaces, and sentiment visualization.
