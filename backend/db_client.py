@@ -119,14 +119,19 @@ class SpannerClient:
                     "companion_name": "Slamy",
                     "companion_id": "slamy"
                 }
-                if rel_row:
-                    relationship = {
-                        "relationship_level": rel_row[0][0],
-                        "bond_points": rel_row[0][1],
-                        "companion_status": rel_row[0][2],
-                        "companion_name": rel_row[0][3],
-                        "companion_id": rel_row[0][4]
-                    }
+                all_relationships = []
+                for row in rel_row:
+                    all_relationships.append({
+                        "relationship_level": row[0],
+                        "bond_points": row[1],
+                        "companion_status": row[2],
+                        "companion_name": row[3],
+                        "companion_id": row[4]
+                    })
+                if all_relationships:
+                    # Keep active relationship as the first one matching 'Active Companion' or first element
+                    active_rel = next((r for r in all_relationships if r["companion_status"] == "Active Companion"), all_relationships[0])
+                    relationship = active_rel
 
                 # 3. Fetch Dialogue logs (GQL)
                 diag_result = snapshot.execute_sql(
@@ -148,6 +153,7 @@ class SpannerClient:
                 return {
                     "player": player_info,
                     "relationship": relationship,
+                    "all_relationships": all_relationships,
                     "dialogues": dialogues
                 }
         except Exception as e:

@@ -9,6 +9,7 @@ function App() {
   // Game session states
   const [playerInfo, setPlayerInfo] = useState(null)
   const [relationship, setRelationship] = useState(null)
+  const [allRelationships, setAllRelationships] = useState([])
   const [messages, setMessages] = useState([])
   const [inputText, setInputText] = useState('')
   const [isTyping, setIsTyping] = useState(false)
@@ -67,6 +68,7 @@ function App() {
         const data = await res.json()
         setPlayerInfo(data.player)
         setRelationship(data.relationship)
+        setAllRelationships(data.all_relationships || [data.relationship])
         
         // Load initial dialogs
         const dialogList = data.dialogues.map(d => ({
@@ -404,6 +406,46 @@ function App() {
                   <pre className="insight-log">
                     {gqlLog.sessionGql || "-- GQL queries will log here --"}
                   </pre>
+
+                  {/* Render Visual Property Graph GQL Output */}
+                  {playerInfo && allRelationships.length > 0 && (
+                    <div className="graph-viz-container">
+                      <div className="graph-relation-row" style={{ justifyContent: 'center' }}>
+                        {/* Player Node */}
+                        <div className="graph-node player-node">
+                          <div className="node-avatar">👤</div>
+                          <div className="node-label">{playerInfo.name}</div>
+                          <div className="node-subtitle">Player (Lvl {playerInfo.level})</div>
+                        </div>
+                      </div>
+
+                      <div className="graph-edges-list">
+                        {allRelationships.map((rel, idx) => (
+                          <div key={idx} className="graph-relation-row">
+                            {/* Edge arrow from player to companion */}
+                            <div className="graph-edge-line-wrapper">
+                              <div className="graph-edge-line">
+                                <span className="graph-edge-label" style={{ fontSize: '0.55rem' }}>
+                                  r.level: {rel.relationship_level} <br />
+                                  r.points: {rel.bond_points}
+                                </span>
+                              </div>
+                              <span className="graph-edge-arrow">▶</span>
+                            </div>
+
+                            {/* Companion Node */}
+                            <div className={`graph-node companion-node ${rel.companion_id}`}>
+                              <div className="node-avatar">
+                                {rel.companion_id === 'slamy' ? '💧' : rel.companion_id === 'ignis' ? '🔥' : '🍃'}
+                              </div>
+                              <div className="node-label">{rel.companion_name}</div>
+                              <div className="node-subtitle" style={{ fontSize: '0.5rem', color: '#ffea00' }}>{rel.companion_status}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
