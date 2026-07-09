@@ -1,0 +1,13 @@
+# Dependency directories
+node_modules/
+dist/
+.venv/
+.venv_314/
+__pycache__/
+*.pyc
+
+# Local configuration
+.vscode/
+terraform/terraform.tfstate*
+terraform/.terraform/
+.terraform.lock.hcl

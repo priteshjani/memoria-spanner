@@ -1,0 +1,13 @@
+{
+  "gcp": {
+    "project_id": "my-host-prj-472917",
+    "region": "us-west4",
+    "zone": "us-west4-a"
+  },
+  "databases": {
+    "spanner": {
+      "instance_id": "spanner-demo-inst",
+      "database_id": "memoria-spanner-db"
+    }
+  }
+}

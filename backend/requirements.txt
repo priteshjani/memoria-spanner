@@ -1,0 +1,8 @@
+fastapi>=0.110.0
+uvicorn>=0.28.0
+pydantic>=2.6.0
+google-genai>=0.1.1
+google-cloud-storage>=2.15.0
+psycopg[binary]>=3.1.18
+cryptography>=42.0.5
+google-cloud-spanner>=3.40.0
