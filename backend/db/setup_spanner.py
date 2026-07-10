@@ -79,7 +79,15 @@ def create_schema(database):
           timestamp TIMESTAMP NOT NULL
         ) PRIMARY KEY (dialogue_id)
         """,
-        # 5. Property Graph definition
+        # 5. Edge Table: Player_Friend_Relations (Social Connections)
+        """
+        CREATE TABLE Player_Friend_Relations (
+          player_id1 INT64 NOT NULL,
+          player_id2 INT64 NOT NULL,
+          connected_at TIMESTAMP NOT NULL
+        ) PRIMARY KEY (player_id1, player_id2)
+        """,
+        # 6. Property Graph definition (linking Players to Companions and Players to Players)
         """
         CREATE PROPERTY GRAPH GameMemoryGraph
           NODE TABLES (
@@ -94,7 +102,11 @@ def create_schema(database):
             Dialogue_Edges
               KEY (dialogue_id)
               SOURCE KEY (player_id) REFERENCES Players (player_id)
-              DESTINATION KEY (companion_id) REFERENCES AI_Companions (companion_id)
+              DESTINATION KEY (companion_id) REFERENCES AI_Companions (companion_id),
+            Player_Friend_Relations
+              KEY (player_id1, player_id2)
+              SOURCE KEY (player_id1) REFERENCES Players (player_id)
+              DESTINATION KEY (player_id2) REFERENCES Players (player_id)
           )
         """
     ]
@@ -107,7 +119,7 @@ def create_schema(database):
     except Exception:
         pass
 
-    for table in ["Dialogue_Edges", "Player_Companion_Relations", "Players", "AI_Companions"]:
+    for table in ["Dialogue_Edges", "Player_Companion_Relations", "Player_Friend_Relations", "Players", "AI_Companions"]:
         try:
             op = database.update_ddl([f"DROP TABLE {table}"])
             op.result()
@@ -184,6 +196,14 @@ def seed_data(database):
         ("d_i3", 4, "ignis", "Ignis", "Perfect coordination! [happy] Lead the way!", "[happy]", now)
     ]
     
+    # Edge: Friendships (linking Players to Players)
+    friendships_data = [
+        (1, 2, now),
+        (1, 3, now),
+        (2, 4, now),
+        (3, 4, now)
+    ]
+    
     dialogues_data = []
     for diag_id, p_id, comp_id, speaker, text, tag, t in dialogues_raw:
         vector = generate_vector(text)
@@ -209,6 +229,11 @@ def seed_data(database):
             table="Dialogue_Edges",
             columns=["dialogue_id", "player_id", "companion_id", "speaker", "text_content", "audio_tag", "embedding", "timestamp"],
             values=dialogues_data
+        )
+        batch.insert(
+            table="Player_Friend_Relations",
+            columns=["player_id1", "player_id2", "connected_at"],
+            values=friendships_data
         )
         
     logger.info("Data seeding completed successfully.")

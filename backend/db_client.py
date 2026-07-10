@@ -87,6 +87,13 @@ class SpannerClient:
         LIMIT 10
         """
 
+        # Spanner Graph GQL query to find friends and their active companions
+        friends_gql = """
+        GRAPH GameMemoryGraph
+        MATCH (p1:Players {player_id: @player_id})-[f:Player_Friend_Relations]-(p2:Players)-[r:Player_Companion_Relations]->(c:AI_Companions)
+        RETURN p2.name AS friend_name, r.relationship_level AS rel_level, c.name AS companion_name, c.companion_id AS companion_id, r.companion_status AS status
+        """
+
         try:
             with db.snapshot(multi_use=True) as snapshot:
                 # 1. Fetch Player
@@ -133,6 +140,22 @@ class SpannerClient:
                     active_rel = next((r for r in all_relationships if r["companion_status"] == "Active Companion"), all_relationships[0])
                     relationship = active_rel
 
+                # 2b. Fetch Friends & their companions (GQL)
+                friends_result = snapshot.execute_sql(
+                    friends_gql,
+                    params={"player_id": player_id},
+                    param_types={"player_id": spanner.param_types.INT64}
+                )
+                friends_list = []
+                for row in friends_result:
+                    friends_list.append({
+                        "friend_name": row[0],
+                        "relationship_level": row[1],
+                        "companion_name": row[2],
+                        "companion_id": row[3],
+                        "companion_status": row[4]
+                    })
+
                 # 3. Fetch Dialogue logs (GQL)
                 diag_result = snapshot.execute_sql(
                     dialogue_gql,
@@ -154,6 +177,7 @@ class SpannerClient:
                     "player": player_info,
                     "relationship": relationship,
                     "all_relationships": all_relationships,
+                    "friends": friends_list,
                     "dialogues": dialogues
                 }
         except Exception as e:

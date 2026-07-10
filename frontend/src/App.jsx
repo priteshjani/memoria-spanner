@@ -10,6 +10,7 @@ function App() {
   const [playerInfo, setPlayerInfo] = useState(null)
   const [relationship, setRelationship] = useState(null)
   const [allRelationships, setAllRelationships] = useState([])
+  const [friends, setFriends] = useState([])
   const [messages, setMessages] = useState([])
   const [inputText, setInputText] = useState('')
   const [isTyping, setIsTyping] = useState(false)
@@ -69,6 +70,7 @@ function App() {
         setPlayerInfo(data.player)
         setRelationship(data.relationship)
         setAllRelationships(data.all_relationships || [data.relationship])
+        setFriends(data.friends || [])
         
         // Load initial dialogs
         const dialogList = data.dialogues.map(d => ({
@@ -82,7 +84,7 @@ function App() {
         // Log GQL queries for this action
         setGqlLog(prev => ({
           ...prev,
-          sessionGql: `GRAPH GameMemoryGraph\nMATCH (p:Players {player_id: ${playerId}})-[r:Player_Companion_Relations]->(c:AI_Companions)\nRETURN r.relationship_level, r.bond_points, r.companion_status, c.name`
+          sessionGql: `/* 1. Fetch Player & Active Companions */\nGRAPH GameMemoryGraph\nMATCH (p:Players {player_id: ${playerId}})-[r:Player_Companion_Relations]->(c:AI_Companions)\nRETURN r.relationship_level, r.bond_points, r.companion_status, c.name\n\n/* 2. Fetch Friends & Their Respective Companions (Multi-hop) */\nGRAPH GameMemoryGraph\nMATCH (p1:Players {player_id: ${playerId}})-[f:Player_Friend_Relations]-(p2:Players)-[r:Player_Companion_Relations]->(c:AI_Companions)\nRETURN p2.name, r.relationship_level, c.name`
         }))
       }
     } catch (err) {
@@ -407,45 +409,73 @@ function App() {
                     {gqlLog.sessionGql || "-- GQL queries will log here --"}
                   </pre>
 
-                  {/* Render Visual Property Graph GQL Output */}
-                  {playerInfo && allRelationships.length > 0 && (
-                    <div className="graph-viz-container">
-                      <div className="graph-relation-row" style={{ justifyContent: 'center' }}>
-                        {/* Player Node */}
-                        <div className="graph-node player-node">
-                          <div className="node-avatar">👤</div>
-                          <div className="node-label">{playerInfo.name}</div>
-                          <div className="node-subtitle">Player (Lvl {playerInfo.level})</div>
-                        </div>
-                      </div>
-
-                      <div className="graph-edges-list">
-                        {allRelationships.map((rel, idx) => (
-                          <div key={idx} className="graph-relation-row">
-                            {/* Edge arrow from player to companion */}
-                            <div className="graph-edge-line-wrapper">
-                              <div className="graph-edge-line">
-                                <span className="graph-edge-label" style={{ fontSize: '0.55rem' }}>
-                                  r.level: {rel.relationship_level} <br />
-                                  r.points: {rel.bond_points}
-                                </span>
-                              </div>
-                              <span className="graph-edge-arrow">▶</span>
-                            </div>
-
-                            {/* Companion Node */}
-                            <div className={`graph-node companion-node ${rel.companion_id}`}>
-                              <div className="node-avatar">
-                                {rel.companion_id === 'slamy' ? '💧' : rel.companion_id === 'ignis' ? '🔥' : '🍃'}
-                              </div>
-                              <div className="node-label">{rel.companion_name}</div>
-                              <div className="node-subtitle" style={{ fontSize: '0.5rem', color: '#ffea00' }}>{rel.companion_status}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                   {/* Render Visual Property Graph GQL Output */}
+                   {playerInfo && allRelationships.length > 0 && (
+                     <div className="graph-viz-container">
+                       <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', gap: '15px' }}>
+                         
+                         {/* Column 1: Friends Node List */}
+                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+                           <div style={{ fontSize: '0.6rem', color: '#cbd5e1', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Friends</div>
+                           {friends.map((f, idx) => (
+                             <div key={idx} className="graph-node friend-node" style={{ borderColor: 'rgba(255,255,255,0.2)' }}>
+                               <div className="node-avatar">👥</div>
+                               <div className="node-label">{f.friend_name}</div>
+                               <div className="node-subtitle">Friend</div>
+                             </div>
+                           ))}
+                           {friends.length === 0 && (
+                             <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', fontStyle: 'italic', maxWidth: '60px', textAlign: 'center' }}>
+                               No friends
+                             </div>
+                           )}
+                         </div>
+ 
+                         {/* Column 2: Active Player Node */}
+                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                           <div style={{ fontSize: '0.6rem', color: '#cbd5e1', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>Active Player</div>
+                           <div className="graph-node player-node">
+                             <div className="node-avatar">👤</div>
+                             <div className="node-label">{playerInfo.name}</div>
+                             <div className="node-subtitle">Lvl {playerInfo.level}</div>
+                           </div>
+                         </div>
+ 
+                         {/* Column 3: Companions Node List */}
+                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+                           <div style={{ fontSize: '0.6rem', color: '#cbd5e1', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Companions</div>
+                           {allRelationships.map((rel, idx) => (
+                             <div key={idx} className={`graph-node companion-node ${rel.companion_id}`}>
+                               <div className="node-avatar">
+                                 {rel.companion_id === 'slamy' ? '💧' : rel.companion_id === 'ignis' ? '🔥' : '🍃'}
+                               </div>
+                               <div className="node-label">{rel.companion_name}</div>
+                               <div className="node-subtitle" style={{ fontSize: '0.5rem', color: '#ffea00' }}>{rel.companion_status.split(' ')[0]}</div>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+ 
+                       {/* Social Graph Details Panel: Multi-hop matching GQL output */}
+                       {friends.length > 0 && (
+                         <div style={{ width: '100%', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '10px', marginTop: '5px' }}>
+                           <div style={{ fontSize: '0.6rem', color: 'var(--text-purple)', fontWeight: 'bold', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                             {"GQL Matches (Friend -> Companion)"}
+                           </div>
+                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                             {friends.map((f, idx) => (
+                               <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', background: 'rgba(255,255,255,0.02)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                                 <span>👥 <strong>{f.friend_name}</strong> is connected to</span>
+                                 <span style={{ color: 'var(--text-cyan)' }}>
+                                   {f.companion_id === 'slamy' ? '💧' : f.companion_id === 'ignis' ? '🔥' : '🍃'} <strong>{f.companion_name}</strong> (Lvl {f.relationship_level})
+                                 </span>
+                               </div>
+                             ))}
+                           </div>
+                         </div>
+                       )}
+                     </div>
+                   )}
                 </div>
               </>
             ) : (
