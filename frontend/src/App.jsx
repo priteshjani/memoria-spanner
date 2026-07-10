@@ -27,6 +27,10 @@ function App() {
     sentiment_timeline: []
   })
 
+  // Graph interaction states
+  const [graphZoom, setGraphZoom] = useState(1.0)
+  const [selectedGraphNodeId, setSelectedGraphNodeId] = useState(null)
+
   const messagesEndRef = useRef(null)
 
   // Fetch initial player presets
@@ -307,12 +311,76 @@ function App() {
       }
     });
 
+    // Zoom calculations for centering
+    const translateX = (1 - graphZoom) * 225;
+    const translateY = (1 - graphZoom) * 140;
+
+    // Helper functions for linkage selection highlight
+    const isNodeSelected = (nodeId) => selectedGraphNodeId === nodeId;
+    const isNodeConnected = (nodeId) => {
+      if (!selectedGraphNodeId) return true;
+      if (selectedGraphNodeId === nodeId) return true;
+      return edges.some(e => 
+        (e.source.id === selectedGraphNodeId && e.target.id === nodeId) ||
+        (e.target.id === selectedGraphNodeId && e.source.id === nodeId)
+      );
+    };
+
+    const isEdgeConnected = (e) => {
+      if (!selectedGraphNodeId) return true;
+      return e.source.id === selectedGraphNodeId || e.target.id === selectedGraphNodeId;
+    };
+
+    const handleNodeClick = (nodeId) => {
+      if (selectedGraphNodeId === nodeId) {
+        setSelectedGraphNodeId(null);
+      } else {
+        setSelectedGraphNodeId(nodeId);
+      }
+    };
+
     return (
-      <div style={{ marginTop: '15px' }}>
-        <h5 style={{ fontSize: '0.7rem', color: 'var(--text-purple)', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
-          Interactive Database Property Graph
-        </h5>
-        <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ background: '#070b13', borderRadius: '8px', border: '1px solid rgba(0, 240, 255, 0.12)' }}>
+      <div style={{ marginTop: '15px', position: 'relative' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <h5 style={{ fontSize: '0.7rem', color: 'var(--text-purple)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Interactive Database Property Graph
+          </h5>
+          {selectedGraphNodeId && (
+            <span style={{ fontSize: '0.55rem', color: '#ffea00', background: 'rgba(255, 234, 0, 0.1)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255, 234, 0, 0.2)' }}>
+              Linkage filter active. Click node again to reset.
+            </span>
+          )}
+        </div>
+
+        {/* Zoom Controls */}
+        <div style={{ position: 'absolute', top: '30px', right: '10px', display: 'flex', gap: '4px', zIndex: 10 }}>
+          <button 
+            onClick={() => setGraphZoom(z => Math.min(2.0, z + 0.15))} 
+            className="btn-control-secondary" 
+            style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 'bold' }}
+            title="Zoom In"
+          >
+            ＋
+          </button>
+          <button 
+            onClick={() => setGraphZoom(z => Math.max(0.5, z - 0.15))} 
+            className="btn-control-secondary" 
+            style={{ padding: '2px 6px', fontSize: '9px', fontWeight: 'bold' }}
+            title="Zoom Out"
+          >
+            －
+          </button>
+          <button 
+            onClick={() => { setGraphZoom(1.0); setSelectedGraphNodeId(null); }} 
+            className="btn-control-secondary" 
+            style={{ padding: '2px 6px', fontSize: '9px', textTransform: 'none' }}
+            title="Reset Graph"
+          >
+            Reset
+          </button>
+        </div>
+
+        <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ background: '#070b13', borderRadius: '8px', border: '1px solid rgba(0, 240, 255, 0.12)', cursor: 'grab' }}>
           <defs>
             <marker id="arrow-cyan" markerWidth="6" markerHeight="6" refX="19" refY="3" orient="auto">
               <path d="M0,0 L0,6 L6,3 z" fill="var(--text-cyan)" />
@@ -325,69 +393,94 @@ function App() {
             </marker>
           </defs>
 
-          {/* Render Connections (Edges) */}
-          {edges.map((e, idx) => (
-            <g key={idx}>
-              <line
-                x1={e.source.x}
-                y1={e.source.y}
-                x2={e.target.x}
-                y2={e.target.y}
-                stroke={e.color}
-                strokeWidth={1.5}
-                strokeDasharray={e.dashed ? '3,3' : 'none'}
-                markerEnd={`url(#${e.markerId})`}
-              />
-              <rect
-                x={(e.source.x + e.target.x) / 2 - 20}
-                y={(e.source.y + e.target.y) / 2 - 5}
-                width={40}
-                height={10}
-                fill="#070b13"
-                rx={2}
-              />
-              <text
-                x={(e.source.x + e.target.x) / 2}
-                y={(e.source.y + e.target.y) / 2 + 2}
-                fill={e.color}
-                fontSize="6px"
-                textAnchor="middle"
-                fontWeight="bold"
-              >
-                {e.label}
-              </text>
-            </g>
-          ))}
+          {/* Group wrapping zoom transform */}
+          <g transform={`translate(${translateX}, ${translateY}) scale(${graphZoom})`} style={{ transition: 'transform 0.25s ease-out' }}>
+            
+            {/* Render Connections (Edges) */}
+            {edges.map((e, idx) => {
+              const connected = isEdgeConnected(e);
+              return (
+                <g key={idx} style={{ opacity: connected ? 1 : 0.08, transition: 'opacity 0.25s ease' }}>
+                  <line
+                    x1={e.source.x}
+                    y1={e.source.y}
+                    x2={e.target.x}
+                    y2={e.target.y}
+                    stroke={e.color}
+                    strokeWidth={connected && selectedGraphNodeId ? 2 : 1.5}
+                    strokeDasharray={e.dashed ? '3,3' : 'none'}
+                    markerEnd={`url(#${e.markerId})`}
+                  />
+                  <rect
+                    x={(e.source.x + e.target.x) / 2 - 20}
+                    y={(e.source.y + e.target.y) / 2 - 5}
+                    width={40}
+                    height={10}
+                    fill="#070b13"
+                    rx={2}
+                  />
+                  <text
+                    x={(e.source.x + e.target.x) / 2}
+                    y={(e.source.y + e.target.y) / 2 + 2}
+                    fill={e.color}
+                    fontSize="6px"
+                    textAnchor="middle"
+                    fontWeight="bold"
+                  >
+                    {e.label}
+                  </text>
+                </g>
+              );
+            })}
 
-          {/* Render Circular Nodes */}
-          {[playerNode, ...companionNodes, ...friendNodes].map((n, idx) => {
-            const isPlayer = n.type === 'player';
-            const isFriend = n.type === 'friend';
-            let strokeColor = 'var(--text-purple)';
-            if (isPlayer) strokeColor = 'var(--text-cyan)';
-            if (isFriend) strokeColor = '#94a3b8';
+            {/* Render Circular Nodes */}
+            {[playerNode, ...companionNodes, ...friendNodes].map((n, idx) => {
+              const isPlayer = n.type === 'player';
+              const isFriend = n.type === 'friend';
+              const isSel = isNodeSelected(n.id);
+              const connected = isNodeConnected(n.id);
+              
+              let strokeColor = 'var(--text-purple)';
+              if (isPlayer) strokeColor = 'var(--text-cyan)';
+              if (isFriend) strokeColor = '#94a3b8';
 
-            return (
-              <g key={idx} transform={`translate(${n.x}, ${n.y})`}>
-                <circle
-                  r={isPlayer ? 18 : 15}
-                  fill="#0d1627"
-                  stroke={strokeColor}
-                  strokeWidth={2}
-                  style={{ filter: isPlayer ? 'drop-shadow(0 0 4px rgba(0,240,255,0.35))' : 'none' }}
-                />
-                <text y={4} textAnchor="middle" fontSize={isPlayer ? '11px' : '9px'}>
-                  {isPlayer ? '👤' : isFriend ? '👥' : n.id === 'slamy' ? '💧' : n.id === 'ignis' ? '🔥' : '🍃'}
-                </text>
-                <text y={24} fill="white" fontSize="8px" fontWeight="bold" textAnchor="middle">
-                  {n.name}
-                </text>
-                <text y={32} fill="var(--text-gray)" fontSize="6px" textAnchor="middle">
-                  {isPlayer ? `Lvl ${n.level}` : isFriend ? 'Friend' : n.status.split(' ')[0]}
-                </text>
-              </g>
-            );
-          })}
+              return (
+                <g 
+                  key={idx} 
+                  transform={`translate(${n.x}, ${n.y})`}
+                  onClick={() => handleNodeClick(n.id)}
+                  style={{ 
+                    cursor: 'pointer',
+                    opacity: connected ? 1 : 0.12, 
+                    transition: 'opacity 0.25s ease, filter 0.25s ease' 
+                  }}
+                >
+                  <circle
+                    r={isPlayer ? 18 : 15}
+                    fill={isSel ? '#1e293b' : '#0d1627'}
+                    stroke={isSel ? '#ffea00' : strokeColor}
+                    strokeWidth={isSel ? 3 : 2}
+                    style={{ 
+                      filter: isSel 
+                        ? 'drop-shadow(0 0 6px #ffea00)' 
+                        : isPlayer 
+                          ? 'drop-shadow(0 0 4px rgba(0,240,255,0.35))' 
+                          : 'none' 
+                    }}
+                  />
+                  <text y={4} textAnchor="middle" fontSize={isPlayer ? '11px' : '9px'}>
+                    {isPlayer ? '👤' : isFriend ? '👥' : n.id === 'slamy' ? '💧' : n.id === 'ignis' ? '🔥' : '🍃'}
+                  </text>
+                  <text y={24} fill="white" fontSize="8px" fontWeight="bold" textAnchor="middle">
+                    {n.name}
+                  </text>
+                  <text y={32} fill="var(--text-gray)" fontSize="6px" textAnchor="middle">
+                    {isPlayer ? `Lvl ${n.level}` : isFriend ? 'Friend' : n.status.split(' ')[0]}
+                  </text>
+                </g>
+              );
+            })}
+          </g>
         </svg>
       </div>
     );
