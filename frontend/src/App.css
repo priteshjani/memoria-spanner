@@ -239,7 +239,7 @@ body {
   transition: width 0.4s ease;
 }
 
-/* Slamy Chat Core */
+/* Lumi Chat Core */
 .chat-window {
   flex: 1;
   display: flex;
@@ -411,6 +411,8 @@ body {
   font-family: monospace;
   font-size: 0.75rem;
   overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
   color: #a7f3d0;
 }
 
@@ -563,7 +565,7 @@ body {
   box-shadow: 0 0 12px rgba(157, 78, 221, 0.25);
 }
 
-.companion-node.slamy {
+.companion-node.lumi {
   border-color: #00f0ff;
   box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
 }
@@ -648,4 +650,30 @@ body {
   color: var(--text-cyan);
   font-size: 0.6rem;
   margin-left: -4px;
+}
+
+/* Voice Chat Recording Button & Animation */
+.btn-mic:hover {
+  color: var(--primary) !important;
+  transform: scale(1.1);
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.25);
+}
+
+.btn-mic.recording {
+  animation: pulse-red-mic 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse-red-mic {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
 }

@@ -1,6 +1,6 @@
 # Memoria Spanner: Real-Time Conversational AI RPG Companion (GenAI & Databases)
 
-A showcase demonstrating a web-based fantasy RPG game client where players conversationally interact with an AI companion named **'Slamy'** using Gemini on Vertex AI, backed by **Cloud Spanner**. 
+A showcase demonstrating a web-based fantasy RPG game client where players conversationally interact with an AI companion named **'Lumi'** using Gemini on Vertex AI, backed by **Cloud Spanner**. 
 
 This demo proves that AI requires persistent database memory to be context-aware and cost-effective. By retrieving historical dialogue logs using **Spanner Graph GQL** and matching semantic memories using **Spanner Vector Search**, the companion speaks back contextually, retaining a long-term memory of previous play sessions and updating relationships in real-time.
 
@@ -153,4 +153,4 @@ cd frontend
 npm install
 npm run dev
 ```
-Open `http://localhost:5173` to play and interact with Slamy.
+Open `http://localhost:5173` to play and interact with Lumi.

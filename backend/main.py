@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -38,7 +38,7 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     player_id: int
-    companion_id: str = "slamy"
+    companion_id: str = "lumi"
     message: str
 
 class RegenerateRequest(BaseModel):
@@ -85,7 +85,7 @@ def companion_chat(request: ChatRequest):
 
     # 3. Create instruction for Gemini
     system_instruction = f"""
-You are 'Slamy', a cheerful, optimistic blue slime companion in a fantasy RPG game.
+You are 'Lumi', a cheerful, optimistic blue slime companion in a fantasy RPG game.
 Your personality: You are energetic and cheerful, but you get easily startled by loud noises or scary things.
 The player you are speaking with: {player_info['name']} (Level {player_info['level']}).
 The player's active quest: {player_info['active_quest']}.
@@ -102,7 +102,7 @@ Here are long-term semantic memories of past interactions you retrieved from you
 
     # 4. Invoke Gemini API
     # We use Application Default Credentials to call GenAI
-    slamy_response = "Slamy is thinking..."
+    lumi_response = "Lumi is thinking..."
     try:
         from google import genai
         from google.genai import types
@@ -120,35 +120,167 @@ Here are long-term semantic memories of past interactions you retrieved from you
             )
         )
         logger.info(f"Gemini response: {response}")
-        slamy_response = response.text.strip()
+        lumi_response = response.text.strip()
     except Exception as e:
         logger.error(f"Failed to generate response from Gemini: {e}", exc_info=True)
         # Fallback response if Gemini fails/quota exceeded
-        slamy_response = "Hi there! [excited] I am super happy to talk to you, even though my cloud connection is acting up!"
+        lumi_response = "Hi there! [excited] I am super happy to talk to you, even though my cloud connection is acting up!"
 
-    # 5. Parse audio tag from Slamy's response (match any tag in brackets)
+    # 5. Parse audio tag from Lumi's response (match any tag in brackets)
     import re
-    match = re.search(r'\[(.*?)\]', slamy_response)
+    match = re.search(r'\[(.*?)\]', lumi_response)
     audio_tag = f"[{match.group(1)}]" if match else None
 
 
 
-    # 6. Record Dialogue Edges (Player message and Slamy response) in Spanner
+    # 6. Record Dialogue Edges (Player message and Lumi response) in Spanner
     # This automatically increases relationship level and bond points in the transaction
     SpannerClient.record_dialogue(player_id, companion_id, player_info["name"], message)
-    SpannerClient.record_dialogue(player_id, companion_id, "Slamy", slamy_response, audio_tag)
+    SpannerClient.record_dialogue(player_id, companion_id, "Lumi", lumi_response, audio_tag)
 
     # 7. Re-fetch updated relationship metrics
     updated_context = SpannerClient.get_session_context(player_id)
     new_relationship = updated_context["relationship"] if updated_context else relationship
 
     return {
-        "reply": slamy_response,
+        "reply": lumi_response,
         "audio_tag": audio_tag,
         "relationship": new_relationship,
         "semantic_memories_retrieved": semantic_memories,
         "updated_dialogues": updated_context["dialogues"] if updated_context else []
     }
+
+class VoiceChatRequest(BaseModel):
+    player_id: int
+    companion_id: str = "lumi"
+    audio_base64: str
+    mime_type: str = "audio/webm"
+
+@app.post("/api/companion/chat-voice")
+def companion_chat_voice(request: VoiceChatRequest):
+    player_id = request.player_id
+    companion_id = request.companion_id
+    
+    # 1. Decode audio
+    import base64
+    try:
+        audio_bytes = base64.b64decode(request.audio_base64)
+    except Exception as e:
+        logger.error(f"Failed to decode base64 audio: {e}")
+        raise HTTPException(status_code=400, detail="Invalid base64 audio data.")
+
+    # 2. Fetch context
+    context = SpannerClient.get_session_context(player_id)
+    if not context:
+        raise HTTPException(status_code=404, detail="Player context not found.")
+    
+    player_info = context["player"]
+    relationship = context["relationship"]
+
+    # 3. Initialize GenAI client
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(vertexai=True, project=PROJECT_ID, location="us-central1")
+
+    # Define Structured Output Schema
+    class AudioAnalysis(BaseModel):
+        transcription: str
+        sentiment: Literal["excited", "happy", "neutral", "scared", "thoughtful", "sad", "angry"]
+
+    # 4. First Call: Transcribe & Sentimental Analysis
+    try:
+        transcribe_prompt = (
+            "Transcribe this audio exactly. Also identify the overall emotion/sentiment of the speaker's voice. "
+            "It must be one of: excited, happy, neutral, scared, thoughtful, sad, angry."
+        )
+        
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[
+                types.Part.from_bytes(data=audio_bytes, mime_type=request.mime_type),
+                transcribe_prompt
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=AudioAnalysis,
+            ),
+        )
+        logger.info(f"Gemini transcription & voice sentiment response: {response.text}")
+        analysis = AudioAnalysis.model_validate_json(response.text.strip())
+    except Exception as e:
+        logger.error(f"Failed transcription and sentiment analysis: {e}", exc_info=True)
+        # Fallback if Gemini fails or structured output fails
+        analysis = AudioAnalysis(transcription="[unintelligible voice input]", sentiment="neutral")
+
+    # 5. Fetch semantic memories based on transcription
+    semantic_memories = SpannerClient.find_semantic_memories(player_id, analysis.transcription)
+    memory_context = ""
+    if semantic_memories:
+        memory_context = "\n".join([
+            f"- {m['speaker']}: {m['text']} {m['tag'] if m['tag'] else ''}" 
+            for m in semantic_memories
+        ])
+    else:
+        memory_context = "No relevant previous memories found."
+
+    # 6. Create instructions for companion reply
+    system_instruction = f"""
+You are 'Lumi', a cheerful, optimistic blue slime companion in a fantasy RPG game.
+Your personality: You are energetic and cheerful, but you get easily startled by loud noises or scary things.
+The player you are speaking with: {player_info['name']} (Level {player_info['level']}).
+The player's active quest: {player_info['active_quest']}.
+Your relationship level with this player: {relationship['relationship_level']}/20.
+
+Your responses MUST be in-character, brief (1-3 sentences), matching a game companion.
+CRITICAL: You MUST include natural-language audio/emotion tags inside square brackets at appropriate places in your speech, such as [excited], [laughs], [giggles], [happy], [scared], [thoughtful], [gasp], [shivers]. Choose one that reflects how you say the words.
+
+Here are long-term semantic memories of past interactions you retrieved from your Spanner memory database relating to this query:
+{memory_context}
+"""
+
+    # 7. Second Call: Generate Lumi's response
+    lumi_response = "Lumi is thinking..."
+    try:
+        response2 = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=analysis.transcription,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=0.7,
+                max_output_tokens=1024
+            )
+        )
+        lumi_response = response2.text.strip()
+    except Exception as e:
+        logger.error(f"Failed to generate companion response from Gemini: {e}", exc_info=True)
+        lumi_response = "Hi there! [excited] I am super happy to talk to you, even though my cloud connection is acting up!"
+
+    # 8. Parse audio/emotion tag from Lumi's response
+    import re
+    match = re.search(r'\[(.*?)\]', lumi_response)
+    companion_tag = f"[{match.group(1)}]" if match else None
+
+    # 9. Save dialogue edges (Player message with sentiment & companion reply with sentiment)
+    player_tag = f"[{analysis.sentiment}]" if analysis.sentiment else None
+    
+    SpannerClient.record_dialogue(player_id, companion_id, player_info["name"], analysis.transcription, player_tag)
+    SpannerClient.record_dialogue(player_id, companion_id, "Lumi", lumi_response, companion_tag)
+
+    # 10. Re-fetch updated relationship metrics
+    updated_context = SpannerClient.get_session_context(player_id)
+    new_relationship = updated_context["relationship"] if updated_context else relationship
+
+    return {
+        "transcription": analysis.transcription,
+        "player_sentiment": analysis.sentiment,
+        "reply": lumi_response,
+        "audio_tag": companion_tag,
+        "relationship": new_relationship,
+        "semantic_memories_retrieved": semantic_memories,
+        "updated_dialogues": updated_context["dialogues"] if updated_context else []
+    }
+
 
 @app.get("/api/analytics/{player_id}")
 def get_analytics(player_id: int):

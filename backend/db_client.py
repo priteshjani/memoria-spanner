@@ -123,8 +123,8 @@ class SpannerClient:
                     "relationship_level": 1,
                     "bond_points": 0,
                     "companion_status": "Inactive",
-                    "companion_name": "Slamy",
-                    "companion_id": "slamy"
+                    "companion_name": "Lumi",
+                    "companion_id": "lumi"
                 }
                 all_relationships = []
                 for row in rel_row:
@@ -257,7 +257,7 @@ class SpannerClient:
                     }
                 )
 
-                if speaker != "Slamy":
+                if speaker != "Lumi":
                     # Update relationship stats on Player_Companion_Relations
                     rel_result = transaction.execute_sql(
                         "SELECT relationship_level, bond_points FROM Player_Companion_Relations WHERE player_id = @player_id AND companion_id = @companion_id LIMIT 1",
@@ -297,7 +297,7 @@ class SpannerClient:
         emotion_query = """
         SELECT audio_tag, COUNT(*) as count
         FROM Dialogue_Edges
-        WHERE player_id = @player_id AND speaker = 'Slamy' AND audio_tag IS NOT NULL
+        WHERE player_id = @player_id AND speaker = 'Lumi' AND audio_tag IS NOT NULL
         GROUP BY audio_tag
         ORDER BY count DESC;
         """
@@ -308,7 +308,7 @@ class SpannerClient:
         timeline_query = """
         SELECT text_content, audio_tag, timestamp
         FROM Dialogue_Edges
-        WHERE player_id = @player_id AND speaker = 'Slamy'
+        WHERE player_id = @player_id AND speaker = 'Lumi'
         ORDER BY timestamp ASC;
         """
         

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Send, RefreshCw, BarChart2, Code } from 'lucide-react'
+import { Send, RefreshCw, BarChart2, Code, Mic, Square } from 'lucide-react'
 import './App.css'
 
 function App() {
@@ -30,6 +30,10 @@ function App() {
   // Graph interaction states
   const [graphZoom, setGraphZoom] = useState(1.0)
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState(null)
+  
+  // Voice Recording states
+  const [isRecording, setIsRecording] = useState(false)
+  const [mediaRecorder, setMediaRecorder] = useState(null)
 
   const messagesEndRef = useRef(null)
 
@@ -78,7 +82,7 @@ function App() {
         
         // Load initial dialogs
         const dialogList = data.dialogues.map(d => ({
-          sender: d.speaker === 'Slamy' ? 'companion' : 'user',
+          sender: d.speaker === 'Lumi' ? 'companion' : 'user',
           text: d.text,
           tag: d.tag,
           timestamp: d.timestamp
@@ -138,7 +142,7 @@ function App() {
       // Update relationship bar
       setRelationship(data.relationship)
       
-      // Display Slamy's reply
+      // Display Lumi's reply
       setMessages(prev => [...prev, {
         sender: 'companion',
         text: data.reply,
@@ -151,7 +155,7 @@ function App() {
       // Log Chat GQL write
       setGqlLog(prev => ({
         ...prev,
-        chatGql: `INSERT INTO Dialogue_Edges (dialogue_id, player_id, companion_id, speaker, text_content, audio_tag, embedding, timestamp)\nVALUES (uuid(), ${selectedPlayerId}, 'slamy', '${playerInfo.name}', '${userMsg}', null, [array], now());`
+        chatGql: `INSERT INTO Dialogue_Edges (dialogue_id, player_id, companion_id, speaker, text_content, audio_tag, embedding, timestamp)\nVALUES (uuid(), ${selectedPlayerId}, 'lumi', '${playerInfo.name}', '${userMsg}', null, [array], now());`
       }))
 
       // Update analytics
@@ -168,6 +172,131 @@ function App() {
       setIsTyping(false)
     }
   }
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      const chunks = [];
+      
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        // Convert blob to base64
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          const base64data = reader.result.split(',')[1];
+          sendVoiceMessage(base64data);
+        };
+        // Stop all tracks on the stream to release the mic
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Failed to access microphone:", err);
+      alert("Microphone access is required to use voice chat.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
+  const sendVoiceMessage = async (base64data) => {
+    if (!selectedPlayerId) return;
+    setIsTyping(true);
+    // Add dummy player message locally while processing
+    setMessages(prev => [...prev, { sender: 'user', text: "🎤 [Processing voice input...]" }]);
+
+    try {
+      const res = await fetch('/api/companion/chat-voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          player_id: parseInt(selectedPlayerId),
+          audio_base64: base64data,
+          mime_type: 'audio/webm'
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error("Voice chat request failed");
+      }
+
+      const data = await res.json();
+      
+      // Update relationship bar
+      setRelationship(data.relationship);
+      
+      // Remove the last message (the "[Processing voice input...]") and replace it with actual transcription
+      setMessages(prev => {
+        const copy = [...prev];
+        if (copy.length > 0 && copy[copy.length - 1].text.startsWith("🎤")) {
+          copy.pop(); // Remove processing msg
+        }
+        return [...copy, { 
+          sender: 'user', 
+          text: data.transcription, 
+          tag: data.player_sentiment ? `[${data.player_sentiment}]` : null 
+        }];
+      });
+
+      // Display Lumi's reply
+      setMessages(prev => [...prev, {
+        sender: 'companion',
+        text: data.reply,
+        tag: data.audio_tag
+      }]);
+
+      // Display spanner vector memories retrieved
+      setSemanticMemories(data.semantic_memories_retrieved || []);
+
+      // Log Chat GQL write
+      setGqlLog(prev => ({
+        ...prev,
+        chatGql: `INSERT INTO Dialogue_Edges (dialogue_id, player_id, companion_id, speaker, text_content, audio_tag, embedding, timestamp)\nVALUES (uuid(), ${selectedPlayerId}, 'lumi', '${playerInfo.name}', '${data.transcription}', '${data.player_sentiment ? `[${data.player_sentiment}]` : 'null'}', [array], now());`
+      }));
+
+      // Update analytics
+      fetchAnalytics(selectedPlayerId);
+
+    } catch (err) {
+      console.error("Failed to send voice message:", err);
+      setMessages(prev => {
+        const copy = [...prev];
+        if (copy.length > 0 && copy[copy.length - 1].text.startsWith("🎤")) {
+          copy.pop();
+        }
+        return [...copy, {
+          sender: 'companion',
+          text: "My voice recognition core is acting up... [sad] Could you speak again?",
+          tag: "[sad]"
+        }];
+      });
+    } finally {
+      setIsTyping(false);
+    }
+  };
 
   const handleRegenerateData = async () => {
     if (!window.confirm("Warning: This will reload the Spanner database schemas and re-seed the default dialogue presets. Proceed?")) {
@@ -469,7 +598,7 @@ function App() {
                     }}
                   />
                   <text y={4} textAnchor="middle" fontSize={isPlayer ? '11px' : '9px'}>
-                    {isPlayer ? '👤' : isFriend ? '👥' : n.id === 'slamy' ? '💧' : n.id === 'ignis' ? '🔥' : '🍃'}
+                    {isPlayer ? '👤' : isFriend ? '👥' : n.id === 'lumi' ? '💧' : n.id === 'ignis' ? '🔥' : '🍃'}
                   </text>
                   <text y={24} fill="white" fontSize="8px" fontWeight="bold" textAnchor="middle">
                     {n.name}
@@ -573,14 +702,14 @@ function App() {
           )}
         </aside>
 
-        {/* Middle Column: Slamy Chat RPG Portal */}
+        {/* Middle Column: Lumi Chat RPG Portal */}
         <main className="game-panel">
           <div className="game-panel-header">
             <div className="flex items-center gap-2">
               <div className="companion-avatar-slime"></div>
-              <span>Talk with Slamy</span>
+              <span>Talk with Lumi</span>
             </div>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-gray)' }}>RPG Game client (Simulated via Gemini TTS text format)</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-gray)' }}>RPG Game client</span>
           </div>
 
           <div className="chat-window">
@@ -589,7 +718,7 @@ function App() {
                 <div key={idx} className={`chat-bubble-wrapper ${m.sender}`}>
                   {m.sender === 'companion' && (
                     <div className="companion-avatar-slime" style={{ animationDelay: `${idx * 0.1}s` }}>
-                      Sm
+                      Lu
                     </div>
                   )}
                   <div className="chat-bubble">
@@ -605,7 +734,7 @@ function App() {
 
               {isTyping && (
                 <div className="chat-bubble-wrapper companion">
-                  <div className="companion-avatar-slime">Sm</div>
+                  <div className="companion-avatar-slime">Lu</div>
                   <div className="chat-bubble" style={{ background: '#1c2638', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <div className="slime-typing-bubble">
                       <div className="typing-dot"></div>
@@ -619,18 +748,41 @@ function App() {
             </div>
 
             <form onSubmit={handleSendMessage} className="chat-input-bar">
+              <button
+                type="button"
+                className={`btn-mic flex items-center justify-center ${isRecording ? 'recording' : ''}`}
+                onClick={toggleRecording}
+                disabled={isTyping || !selectedPlayerId}
+                title={isRecording ? "Stop recording" : "Record voice input"}
+                style={{
+                  background: isRecording ? '#ef4444' : 'transparent',
+                  border: 'none',
+                  color: isRecording ? 'white' : 'var(--text-gray)',
+                  padding: '8px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  marginRight: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.25s ease',
+                  boxShadow: isRecording ? '0 0 10px #ef4444' : 'none'
+                }}
+              >
+                {isRecording ? <Square size={13} fill="white" /> : <Mic size={15} />}
+              </button>
               <input 
                 type="text" 
                 className="chat-text-input" 
-                placeholder={`Type here to speak to Slamy...`}
+                placeholder={isRecording ? "Recording voice... Click square button to stop and send." : `Type here to speak to Lumi...`}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                disabled={isTyping || !selectedPlayerId}
+                disabled={isTyping || !selectedPlayerId || isRecording}
               />
               <button 
                 type="submit" 
                 className="btn-send flex items-center justify-center"
-                disabled={!inputText.trim() || isTyping || !selectedPlayerId}
+                disabled={!inputText.trim() || isTyping || !selectedPlayerId || isRecording}
               >
                 <Send size={15} />
               </button>
@@ -657,7 +809,7 @@ function App() {
             </div>
           </div>
 
-          <div className="game-panel-body" style={{ overflowY: 'auto', maxHeight: '500px' }}>
+          <div className="game-panel-body">
             {activeTab === 'technical' ? (
               <>
                 {/* 1. Spanner Vector Match Context */}
@@ -680,7 +832,7 @@ function App() {
                     ))
                   ) : (
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontStyle: 'italic' }}>
-                      No vector lookup executed yet. Speak to Slamy to trigger long-term semantic memory retrieval.
+                      No vector lookup executed yet. Speak to Lumi to trigger long-term semantic memory retrieval.
                     </div>
                   )}
                 </div>
@@ -723,7 +875,7 @@ function App() {
                     </div>
                   ) : (
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', fontStyle: 'italic' }}>
-                      No companion sentiment logged yet. Speak with Slamy to build analytics dataset.
+                      No companion sentiment logged yet. Speak with Lumi to build analytics dataset.
                     </div>
                   )}
                 </div>

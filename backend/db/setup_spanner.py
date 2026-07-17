@@ -148,18 +148,18 @@ def seed_data(database):
     
     # Node: AI_Companions (expanded to 3 companions)
     companions_data = [
-        ("slamy", "Slamy", "slamy_voice_id", "Cheerful and optimistic, but gets easily startled by loud noises. Always uses natural-language emotion tags when expressing themselves.", "A small friendly blue slime companion."),
+        ("lumi", "Lumi", "lumi_voice_id", "Cheerful and optimistic, but gets easily startled by loud noises. Always uses natural-language emotion tags when expressing themselves.", "A small friendly blue slime companion."),
         ("ignis", "Ignis", "ignis_voice_id", "Proud, hot-headed, and fierce. Speaks with high confidence, occasionally letting out dry chuckles. Likes combat and treasure.", "A small red fire drake drake hatchling."),
         ("aria", "Aria", "aria_voice_id", "Thoughtful, gentle, and calm. Focused on wind, nature, and deep wisdom. Speaks softly and poetically.", "A beautiful wind sprite companion.")
     ]
     
     # Edge: Relations (expanded to show graph connectivity: multiple companions per player)
     relations_data = [
-        (1, "slamy", 5, 450, "Active Companion"),
+        (1, "lumi", 5, 450, "Active Companion"),
         (1, "ignis", 2, 120, "Resting at Camp"),
-        (2, "slamy", 1, 10, "Resting at Camp"),
+        (2, "lumi", 1, 10, "Resting at Camp"),
         (2, "aria", 15, 1450, "Active Companion"),
-        (3, "slamy", 3, 220, "Active Companion"),
+        (3, "lumi", 3, 220, "Active Companion"),
         (3, "ignis", 5, 490, "Resting at Camp"),
         (4, "ignis", 18, 1820, "Active Companion"),
         (4, "aria", 8, 750, "Resting at Camp")
@@ -167,13 +167,13 @@ def seed_data(database):
     
     # Edge: Dialogues (rich set of conversations for different players/companions)
     dialogues_raw = [
-        # Hiro & Slamy (Quest: Dragon)
-        ("d_h1", 1, "slamy", "Hiro", "Hey Slamy, do you think we can defeat the dragon today?", None, now),
-        ("d_s1", 1, "slamy", "Slamy", "Of course we can, Hiro! We have trained so hard! [excited] Just please do not let it sneeze on me...", "[excited]", now),
-        ("d_h2", 1, "slamy", "Hiro", "Thanks Slamy, that makes me feel better.", None, now),
-        ("d_s2", 1, "slamy", "Slamy", "Anytime! [happy] I am always by your side!", "[happy]", now),
-        ("d_h3", 1, "slamy", "Hiro", "Do you hear that roaring sound?", None, now),
-        ("d_s3", 1, "slamy", "Slamy", "Eeeek! [scared] Yes, let's hide behind that boulder!", "[scared]", now),
+        # Hiro & Lumi (Quest: Dragon)
+        ("d_h1", 1, "lumi", "Hiro", "Hey Lumi, do you think we can defeat the dragon today?", None, now),
+        ("d_s1", 1, "lumi", "Lumi", "Of course we can, Hiro! We have trained so hard! [excited] Just please do not let it sneeze on me...", "[excited]", now),
+        ("d_h2", 1, "lumi", "Hiro", "Thanks Lumi, that makes me feel better.", None, now),
+        ("d_s2", 1, "lumi", "Lumi", "Anytime! [happy] I am always by your side!", "[happy]", now),
+        ("d_h3", 1, "lumi", "Hiro", "Do you hear that roaring sound?", None, now),
+        ("d_s3", 1, "lumi", "Lumi", "Eeeek! [scared] Yes, let's hide behind that boulder!", "[scared]", now),
         
         # Hiro & Ignis
         ("d_hi1", 1, "ignis", "Hiro", "Ignis, are you ready to fight?", None, now),
@@ -185,9 +185,9 @@ def seed_data(database):
         ("d_so2", 2, "aria", "Sofia", "Is it guarded?", None, now),
         ("d_a2", 2, "aria", "Aria", "A dark shadow lingers. [scared] Be careful, my friend.", "[scared]", now),
         
-        # Elena & Slamy (Quest: Herbs)
-        ("d_el1", 3, "slamy", "Elena", "Slamy, look! Are those the silver lotus flowers?", None, now),
-        ("d_s4", 3, "slamy", "Slamy", "They are glowing! [excited] Oh, they look so pretty!", "[excited]", now),
+        # Elena & Lumi (Quest: Herbs)
+        ("d_el1", 3, "lumi", "Elena", "Lumi, look! Are those the silver lotus flowers?", None, now),
+        ("d_s4", 3, "lumi", "Lumi", "They are glowing! [excited] Oh, they look so pretty!", "[excited]", now),
         
         # Marcus & Ignis (Quest: Demon King)
         ("d_m1", 4, "ignis", "Marcus", "The Demon King is ahead. Ready, Ignis?", None, now),
