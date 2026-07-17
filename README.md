@@ -1,8 +1,6 @@
-# Memoria Spanner: Real-Time Conversational AI RPG Companion (GenAI & Databases)
+# Memoria Spanner: Real-Time Conversational AI RPG Companion with Voice Sentiment Analysis
 
-A showcase demonstrating a web-based fantasy RPG game client where players conversationally interact with an AI companion named **'Lumi'** using Gemini on Vertex AI, backed by **Cloud Spanner**. 
-
-This demo proves that AI requires persistent database memory to be context-aware and cost-effective. By retrieving historical dialogue logs using **Spanner Graph GQL** and matching semantic memories using **Spanner Vector Search**, the companion speaks back contextually, retaining a long-term memory of previous play sessions and updating relationships in real-time.
+A showcase demonstrating a web-based fantasy RPG game client where players conversationally interact with an AI companion named **'Lumi'** via text or voice. Powered by **Gemini 2.5 Flash on Vertex AI** (for multimodal speech transcription and vocal sentiment analysis) and backed by **Cloud Spanner Graph** & **Vector Similarity Search** for long-term memory.
 
 ---
 
@@ -34,15 +32,23 @@ This demo proves that AI requires persistent database memory to be context-aware
 - **AI Companion Response (Ignis)**: `"Fwah! Let him come! [excited] I will melt his dark armor to slag!"`
 - **Spanner Action**: Resolves the player-companion node relation to load Ignis's specific red-drake hatchling personality instructions.
 
+### 4. Voice Input & Vocal Sentiment Analysis
+- **Player Input (Vocal Speech)**: (Player records audio message: `"Lumi, is that a monster behind the tree?"` with a worried tone)
+- **Voice Transcription**: `"Lumi, is that a monster behind the tree?"`
+- **Vocal Tone Sentiment**: `[scared]` (extracted directly from the voice audio by Gemini 2.5 Flash).
+- **AI Companion Response**: `"Eeeek! [scared] I-I think so, Hiro! Let's hide!"`
+- **Spanner Action**: Inserts dialogue nodes for both speaker turns. The player's turn is stored with their vocal sentiment tag (`[scared]`), and Lumi's turn is stored with their emotion tag (`[scared]`), which automatically updates relation stats in Spanner.
+
 ---
 
 ## 🛠️ Key Capabilities & Features
 
-1. **Obsidian Glassmorphic Gaming UI**: A premium dark-navy gaming dashboard built in React featuring animated character profile cards, active quest trackers, live chat interfaces, and sentiment visualization.
-2. **Spanner Graph Integration**: Models nodes (`Players`, `AI_Companions`) and edges (`Player_Companion_Relations`, `Dialogue_Edges`) inside a unified Property Graph. Evaluates real-time relationship metrics and conversation histories via GQL (`MATCH` queries).
-3. **Spanner Vector Similarity Search**: Computes unit-vector cosine distance embeddings inside Spanner SQL queries to identify and surface past dialogue logs relevant to the current player's prompt.
-4. **Vertex AI Gemini Integration**: Invokes `gemini-2.5-flash` in Vertex AI mode utilizing Application Default Credentials (ADC) to generate in-character responses adorned with dynamic audio tags (e.g., `[excited]`, `[shivers]`).
-5. **Interactive Data Regeneration**: Exposes controls to wipe the database, redeploy the entire DDL schema (node/edge tables, property graph, index constraints), and re-seed clean preset configurations in real-time.
+1. **Obsidian Glassmorphic Gaming UI**: A premium dark-navy gaming dashboard built in React featuring character profile cards, active quest trackers, live chat interfaces with text and voice (microphone) recording, and interactive property graph visualizations.
+2. **Multimodal Voice Sentiment Analysis**: Captures the player's microphone audio input, converts it to base64, and uses Gemini 2.5 Flash's native audio understanding to transcribe the words and analyze the speaker's vocal tone sentiment (mapping to excited, happy, neutral, scared, thoughtful, sad, or angry).
+3. **Spanner Graph Integration**: Models nodes (`Players`, `AI_Companions`) and edges (`Player_Companion_Relations`, `Dialogue_Edges`) inside a unified Property Graph. Evaluates real-time relationship metrics and conversation histories via GQL (`MATCH` queries).
+4. **Spanner Vector Similarity Search**: Computes unit-vector cosine distance embeddings inside Spanner SQL queries to identify and surface past dialogue logs relevant to the current player's prompt.
+5. **Vertex AI Gemini Integration**: Invokes `gemini-2.5-flash` in Vertex AI mode to perform voice analysis and generate in-character responses adorned with dynamic emotion/speech tags.
+6. **Interactive Data Regeneration**: Exposes controls to wipe the database, redeploy the entire DDL schema (node/edge tables, property graph, index constraints), and re-seed clean preset configurations in real-time.
 
 ---
 
@@ -56,7 +62,13 @@ sequenceDiagram
     participant Spanner as Cloud Spanner Database
     participant Vertex as Vertex AI (Gemini 2.5)
 
-    Player->>API: Sends Chat Message ("Can you see the dragon?")
+    alt Voice Chat Input
+        Player->>API: Sends Base64 Voice Audio (audio/webm)
+        API->>Vertex: Call generate_content (with Audio Bytes + transcription/sentiment prompt)
+        Vertex-->>API: Returns Structured JSON (transcription & vocal sentiment tag)
+    else Text Chat Input
+        Player->>API: Sends Chat Message Text ("Can you see the dragon?")
+    end
     
     rect rgb(20, 24, 40)
         Note over API, Spanner: Fetch Context & Semantic Memory
@@ -72,11 +84,11 @@ sequenceDiagram
 
     rect rgb(20, 24, 40)
         Note over API, Spanner: Update Relationship & Record dialogue
-        API->>Spanner: Start Read-Write Transaction:<br/>1. Log dialogue nodes & edges<br/>2. Increment bond points & relationship level
+        API->>Spanner: Start Read-Write Transaction:<br/>1. Log dialogue nodes & edges (including player voice sentiment)<br/>2. Increment bond points & relationship level
         Spanner-->>API: Commit Transaction Success
     end
 
-    API-->>Player: Return JSON payload (Speech reply, parsed audio tag, updated metrics, log details)
+    API-->>Player: Return JSON payload (Transcription, user sentiment, reply, companion tag, updated metrics, log details)
 ```
 
 ---
