@@ -53,6 +53,78 @@ A showcase demonstrating a web-based fantasy RPG game client where players conve
 
 ---
 
+## 📋 System Requirements
+
+To run this demo successfully, ensure you meet the following requirements:
+1. **Google Cloud Platform (GCP)**:
+   - An active GCP Project.
+   - Cloud Spanner Instance and Database.
+   - Vertex AI API enabled (for Gemini 2.5 Flash).
+   - Local authentication configured via Application Default Credentials (`gcloud auth application-default login`).
+2. **Local Environment**:
+   - Python 3.10+ (for FastAPI backend and setup script).
+   - Node.js 18+ (for building the React frontend).
+3. **Web Browser**:
+   - A modern browser that supports the **Web Speech API** (for client-side TTS playback and voice listing) and **MediaRecorder API** (for capturing microphone audio). Chrome, Edge, or Safari are recommended.
+
+---
+
+## 🏗️ Architecture & Component Design
+
+The application uses a 3-tier architecture designed for low-latency, real-time gaming companionship:
+
+```mermaid
+graph TD
+    subgraph Client [Client - React Web App]
+        UI[Glassmorphic Gaming UI]
+        TTS[Web Speech API - TTS Engine]
+        Rec[MediaRecorder - Voice Capture]
+    end
+
+    subgraph Backend [Backend - FastAPI App]
+        API[FastAPI Router]
+        DBClient[Spanner Client]
+    end
+
+    subgraph GCP [Google Cloud Services]
+        Vertex[Vertex AI - Gemini 2.5 Flash]
+        Spanner[Cloud Spanner Graph + Vector Search]
+    end
+
+    %% Flow connections
+    UI -->|Sends Base64 Audio / Text| API
+    Rec -->|Captures Audio| UI
+    API -->|1. Multimodal Audio Analysis| Vertex
+    API -->|2. Query Graph Relations & Memories| Spanner
+    API -->|3. Generate In-Character Prompt| Vertex
+    API -->|4. Log Dialogue & Update Relationship| Spanner
+    API -->|5. JSON Response| UI
+    UI -->|Trigger playback with voice/gender settings| TTS
+```
+
+### Key Architectural Flow:
+1. **Input Delivery**: The user speaks (capturing base64 WebM audio) or types in the RPG interface.
+2. **Cognitive Parsing**: If it's audio, the backend sends the raw audio bytes to Gemini 2.5 Flash to simultaneously transcribe the text and analyze the speaker's vocal sentiment (e.g. Scared, Angry, Happy).
+3. **Memory Retrieval**: The backend runs two queries on Cloud Spanner:
+   - A **GQL Graph query** to fetch current companion relations (friend recommendations, bond levels).
+   - A **Vector Similarity Search** using cosine distance to retrieve contextually relevant dialogues.
+4. **Contextual Reply**: Vertex AI generates the companion response, embedded with natural emotion tags.
+5. **Database Sync**: The backend commits a write transaction logging the dialogue edges and updating relationship stats in Spanner.
+6. **Voice Synthesis**: The client receives the text reply and uses the browser's Web Speech synthesis, respecting user-selected voice gender and specific system voice selectors, to read the cleaned response.
+
+---
+
+## 🧩 Key Components Used
+
+- **Frontend Core**: React (Hooks, state management for presets, messages, and configurations), CSS Glassmorphism.
+- **Microphone & Voice Capture**: Web MediaRecorder API to record raw audio snippets and encode them to Base64.
+- **Voice Synthesis (TTS)**: Web Speech Synthesis API (`window.speechSynthesis`), allowing custom browser voice listing, filtering by voice gender attributes (mapping names to genders), and playback speech rate controls.
+- **Backend API**: FastAPI (Python), serving static frontend builds and hosting CORS-compliant routes.
+- **AI Core**: Vertex AI SDK for Python (`google-genai` client), calling the `gemini-2.5-flash` model with system instructions and JSON schemas for structured audio analysis outputs.
+- **Memory Core**: Google Cloud Spanner (`google-cloud-spanner`), utilizing its integrated Property Graph (GQL MATCH queries) and SQL Vector Search (`COSINE_DISTANCE`) features.
+
+---
+
 ## 🔄 Application Process Flow
 
 ```mermaid
