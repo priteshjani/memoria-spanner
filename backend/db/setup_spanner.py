@@ -15,10 +15,10 @@ CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__fil
 with open(CONFIG_PATH, "r") as f:
     CONFIG = json.load(f)
 
-PROJECT_ID = CONFIG.get("gcp", {}).get("project_id")
+PROJECT_ID = os.environ.get("PROJECT_ID", CONFIG.get("gcp", {}).get("project_id"))
 SPANNER_CONFIG = CONFIG.get("databases", {}).get("spanner", {})
-INSTANCE_ID = SPANNER_CONFIG.get("instance_id", "spanner-demo-inst")
-DATABASE_ID = SPANNER_CONFIG.get("database_id", "memoria-spanner-db")
+INSTANCE_ID = os.environ.get("SPANNER_INSTANCE", SPANNER_CONFIG.get("instance_id", "spanner-demo-inst"))
+DATABASE_ID = os.environ.get("SPANNER_DATABASE", SPANNER_CONFIG.get("database_id", "memoria-spanner-db"))
 
 def generate_vector(text: str) -> list:
     """Generates a stable 768-dimensional mock vector using the text hash as seed."""

@@ -95,15 +95,63 @@ sequenceDiagram
 
 ---
 
-## 🚀 Cloud Deployment (Google Cloud Run)
+## 🚀 Cloud Deployment
 
-### 1. Build and Push Container Image to Artifact Registry
-Deploy using Google Cloud Build directly to Artifact Registry in your project:
+You can deploy the entire demo (Cloud Spanner instance, Spanner Database, IAM Roles, and Cloud Run service) either automatically using Terraform or manually using the `gcloud` CLI.
+
+### Option 1: Automatic Deployment via Terraform (Recommended)
+
+Terraform will automatically provision your Cloud Spanner instance, database, dedicated IAM Service Account, Artifact Registry, and Cloud Run service.
+
+#### Prerequisites
+- Installed [Terraform CLI](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli).
+- Authorized Application Default Credentials:
+  ```bash
+  gcloud auth application-default login
+  ```
+
+#### Deployment Steps
+
+1. **Configure variables**:
+   Edit [terraform/terraform.tfvars](terraform/terraform.tfvars) and replace `"ENTER_YOUR_PROJECT_ID_HERE"` with your GCP Project ID. Optionally change the region (defaults to `us-west4`).
+
+2. **Initialize and provision the Artifact Registry**:
+   To prevent Cloud Run deployment failure, we first provision the Artifact Registry repository so we can push the container image:
+   ```bash
+   cd terraform
+   terraform init
+   terraform apply -target=google_artifact_registry_repository.demo_repo
+   ```
+
+3. **Build and push the container image**:
+   Return to the project root directory and build/push the Docker image to your newly created registry:
+   ```bash
+   cd ..
+   gcloud builds submit --tag us-west4-docker.pkg.dev/YOUR_PROJECT_ID/cloudscript-repo/memoria-spanner:latest .
+   ```
+   *(Note: Adjust the region `us-west4` and `YOUR_PROJECT_ID` if customized in your `terraform.tfvars`).*
+
+4. **Deploy the remaining resources**:
+   Deploy Spanner, IAM roles, and the Cloud Run service:
+   ```bash
+   cd terraform
+   terraform apply
+   ```
+
+5. **Initialize Database Schema**:
+   Once complete, Terraform will output your `service_url`. Open this URL in your browser and use the **Database Schema / Re-seed** -> **Wipe & Regenerate Database** button to populate the Spanner Graph schema and presets.
+
+---
+
+### Option 2: Manual Deployment via `gcloud` CLI
+
+#### 1. Build and Push Container Image to Artifact Registry
+Create an Artifact Registry repository manually first (e.g., `cloudscript-repo`), then deploy using Google Cloud Build:
 ```bash
 gcloud builds submit --tag us-west4-docker.pkg.dev/YOUR_PROJECT_ID/cloudscript-repo/memoria-spanner:latest .
 ```
 
-### 2. Deploy to Cloud Run
+#### 2. Deploy to Cloud Run
 Run the following to deploy the container service. Ensure you pass your target GCP project ID:
 ```bash
 gcloud run deploy memoria-spanner \
@@ -114,7 +162,7 @@ gcloud run deploy memoria-spanner \
   --allow-unauthenticated
 ```
 
-### 3. Grant Vertex AI Access to the Service Account
+#### 3. Grant Vertex AI Access to the Service Account
 To enable the Cloud Run instance to invoke Gemini models on Vertex AI, grant the **Vertex AI User** role to its default compute service account:
 ```bash
 gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \

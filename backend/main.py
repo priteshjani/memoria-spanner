@@ -21,7 +21,7 @@ CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.j
 with open(CONFIG_PATH, "r") as f:
     CONFIG = json.load(f)
 
-PROJECT_ID = CONFIG.get("gcp", {}).get("project_id")
+PROJECT_ID = os.environ.get("PROJECT_ID", CONFIG.get("gcp", {}).get("project_id"))
 
 from db_client import SpannerClient
 
