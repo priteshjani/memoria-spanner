@@ -1,6 +1,29 @@
 import { useState, useEffect, useRef } from 'react'
-import { Send, RefreshCw, BarChart2, Code, Mic, Square } from 'lucide-react'
+import { Send, RefreshCw, BarChart2, Code, Mic, Square, Volume2, VolumeX } from 'lucide-react'
 import './App.css'
+
+const getVoiceGender = (voice) => {
+  const name = voice.name.toLowerCase();
+  const femaleNames = [
+    'samantha', 'victoria', 'fiona', 'karen', 'moira', 'tessa', 'veena', 'zira', 
+    'susan', 'hazel', 'kyoko', 'yumi', 'zuzana', 'amelie', 'anna', 'alice', 
+    'ellen', 'joana', 'katya', 'milena', 'mónica', 'paulina', 'sara', 'satomi', 
+    'sin-ji', 'ting-ting', 'yelena', 'siri female', 'google us english', 
+    'microsoft zira', 'microsoft haruka', 'microsoft heami'
+  ];
+  const maleNames = [
+    'alex', 'daniel', 'fred', 'rishi', 'oliver', 'george', 'thomas', 'alan', 
+    'ravi', 'siri male', 'microsoft david', 'microsoft ichiro', 'google uk english male'
+  ];
+  
+  if (name.includes('female') || femaleNames.some(f => name.includes(f))) {
+    return 'female';
+  }
+  if (name.includes('male') || maleNames.some(m => name.includes(m))) {
+    return 'male';
+  }
+  return 'neutral';
+};
 
 function App() {
   const [presets, setPresets] = useState([])
@@ -35,7 +58,52 @@ function App() {
   const [isRecording, setIsRecording] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState(null)
 
+  // Voice Synthesis (TTS) states
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(true)
+  const [voices, setVoices] = useState([])
+  const [selectedVoice, setSelectedVoice] = useState(null)
+  const [voiceGenderFilter, setVoiceGenderFilter] = useState('all')
+
   const messagesEndRef = useRef(null)
+
+  // Load speechSynthesis voices
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+    const loadVoices = () => {
+      const allVoices = window.speechSynthesis.getVoices();
+      // Filter to English voices for companion context
+      const englishVoices = allVoices.filter(v => v.lang.startsWith('en'));
+      const listToUse = englishVoices.length > 0 ? englishVoices : allVoices;
+
+      setVoices(listToUse);
+
+      // Select default female voice if none selected yet
+      if (listToUse.length > 0 && !selectedVoice) {
+        const femaleDefault = listToUse.find(v => getVoiceGender(v) === 'female') || listToUse[0];
+        setSelectedVoice(femaleDefault.name);
+      }
+    };
+
+    loadVoices();
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, [selectedVoice]);
+
+  // Handle auto-updating voice selection when filter changes
+  useEffect(() => {
+    if (voices.length === 0) return;
+
+    const filtered = voices.filter(v => {
+      if (voiceGenderFilter === 'all') return true;
+      return getVoiceGender(v) === voiceGenderFilter;
+    });
+
+    if (filtered.length > 0 && !filtered.some(v => v.name === selectedVoice)) {
+      setSelectedVoice(filtered[0].name);
+    }
+  }, [voiceGenderFilter, voices, selectedVoice]);
 
   // Fetch initial player presets
   useEffect(() => {
@@ -112,6 +180,29 @@ function App() {
     }
   }
 
+  const speakText = (text) => {
+    if (!isVoiceEnabled || typeof window === 'undefined' || !window.speechSynthesis) return;
+
+    // Cancel any active/queued speech first
+    window.speechSynthesis.cancel();
+
+    // Strip [tags] from text
+    const cleanText = text.replace(/\[.*?\]/g, '').trim();
+    if (!cleanText) return;
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    
+    // Set selected voice
+    if (selectedVoice) {
+      const voiceObj = voices.find(v => v.name === selectedVoice);
+      if (voiceObj) {
+        utterance.voice = voiceObj;
+      }
+    }
+    
+    window.speechSynthesis.speak(utterance);
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault()
     if (!inputText.trim() || !selectedPlayerId) return
@@ -149,6 +240,9 @@ function App() {
         tag: data.audio_tag
       }])
 
+      // Speak the text
+      speakText(data.reply)
+
       // Display spanner vector memories retrieved
       setSemanticMemories(data.semantic_memories_retrieved || [])
 
@@ -163,11 +257,13 @@ function App() {
 
     } catch (err) {
       console.error("Failed to send message:", err)
+      const errorMsg = "My slime memory core is acting up... [sad] Could you say that again?"
       setMessages(prev => [...prev, {
         sender: 'companion',
-        text: "My slime memory core is acting up... [sad] Could you say that again?",
+        text: errorMsg,
         tag: "[sad]"
       }])
+      speakText(errorMsg)
     } finally {
       setIsTyping(false)
     }
@@ -268,6 +364,9 @@ function App() {
         tag: data.audio_tag
       }]);
 
+      // Speak the text
+      speakText(data.reply);
+
       // Display spanner vector memories retrieved
       setSemanticMemories(data.semantic_memories_retrieved || []);
 
@@ -282,6 +381,7 @@ function App() {
 
     } catch (err) {
       console.error("Failed to send voice message:", err);
+      const errorMsg = "My voice recognition core is acting up... [sad] Could you speak again?";
       setMessages(prev => {
         const copy = [...prev];
         if (copy.length > 0 && copy[copy.length - 1].text.startsWith("🎤")) {
@@ -289,10 +389,11 @@ function App() {
         }
         return [...copy, {
           sender: 'companion',
-          text: "My voice recognition core is acting up... [sad] Could you speak again?",
+          text: errorMsg,
           tag: "[sad]"
         }];
       });
+      speakText(errorMsg);
     } finally {
       setIsTyping(false);
     }
@@ -615,6 +716,11 @@ function App() {
     );
   }
 
+  const filteredVoices = voices.filter(v => {
+    if (voiceGenderFilter === 'all') return true;
+    return getVoiceGender(v) === voiceGenderFilter;
+  });
+
   return (
     <div className="game-layout">
       {/* Game Header Bar */}
@@ -713,6 +819,70 @@ function App() {
           </div>
 
           <div className="chat-window">
+            {/* Voice Settings Bar */}
+            <div className="voice-settings-bar">
+              <button
+                type="button"
+                className="btn-voice-toggle"
+                onClick={() => setIsVoiceEnabled(!isVoiceEnabled)}
+                title={isVoiceEnabled ? "Disable Voice Output (TTS)" : "Enable Voice Output (TTS)"}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: isVoiceEnabled ? 'var(--text-cyan)' : 'var(--text-gray)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  transition: 'all 0.2s'
+                }}
+              >
+                {isVoiceEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                <span>Voice Output</span>
+              </button>
+
+              {isVoiceEnabled && (
+                <div className="voice-selectors" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <div className="voice-filter-group" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    <span>Gender:</span>
+                    <select
+                      value={voiceGenderFilter}
+                      onChange={(e) => setVoiceGenderFilter(e.target.value)}
+                      className="voice-control-select"
+                    >
+                      <option value="all">All</option>
+                      <option value="female">Female</option>
+                      <option value="male">Male</option>
+                    </select>
+                  </div>
+
+                  <div className="voice-select-group" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    <span>Voice:</span>
+                    <select
+                      value={selectedVoice || ''}
+                      onChange={(e) => setSelectedVoice(e.target.value)}
+                      className="voice-control-select"
+                      style={{ maxWidth: '140px' }}
+                    >
+                      {filteredVoices.length > 0 ? (
+                        filteredVoices.map(v => (
+                          <option key={v.name} value={v.name}>
+                            {v.name.replace(/Google/i, '').replace(/Microsoft/i, '').trim()}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">No English voices</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="chat-messages-area">
               {messages.map((m, idx) => (
                 <div key={idx} className={`chat-bubble-wrapper ${m.sender}`}>

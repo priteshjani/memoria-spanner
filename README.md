@@ -43,12 +43,13 @@ A showcase demonstrating a web-based fantasy RPG game client where players conve
 
 ## 🛠️ Key Capabilities & Features
 
-1. **Obsidian Glassmorphic Gaming UI**: A premium dark-navy gaming dashboard built in React featuring character profile cards, active quest trackers, live chat interfaces with text and voice (microphone) recording, and interactive property graph visualizations.
+1. **Obsidian Glassmorphic Gaming UI**: A premium dark-navy gaming dashboard built in React featuring character profile cards, active quest trackers, live chat interfaces with text and voice (microphone) recording, interactive property graph visualizations, and client-side companion TTS voice settings.
 2. **Multimodal Voice Sentiment Analysis**: Captures the player's microphone audio input, converts it to base64, and uses Gemini 2.5 Flash's native audio understanding to transcribe the words and analyze the speaker's vocal tone sentiment (mapping to excited, happy, neutral, scared, thoughtful, sad, or angry).
 3. **Spanner Graph Integration**: Models nodes (`Players`, `AI_Companions`) and edges (`Player_Companion_Relations`, `Dialogue_Edges`) inside a unified Property Graph. Evaluates real-time relationship metrics and conversation histories via GQL (`MATCH` queries).
 4. **Spanner Vector Similarity Search**: Computes unit-vector cosine distance embeddings inside Spanner SQL queries to identify and surface past dialogue logs relevant to the current player's prompt.
 5. **Vertex AI Gemini Integration**: Invokes `gemini-2.5-flash` in Vertex AI mode to perform voice analysis and generate in-character responses adorned with dynamic emotion/speech tags.
 6. **Interactive Data Regeneration**: Exposes controls to wipe the database, redeploy the entire DDL schema (node/edge tables, property graph, index constraints), and re-seed clean preset configurations in real-time.
+7. **Client-Side Text-To-Speech (TTS)**: Integrates browser speech synthesis to play Lumi's responses. Includes customizable controls to toggle voice output on/off, filter available system voices by gender (All, Female, Male), and pick specific voices, while dynamically cleaning raw emotion tags for natural playback.
 
 ---
 
@@ -89,6 +90,7 @@ sequenceDiagram
     end
 
     API-->>Player: Return JSON payload (Transcription, user sentiment, reply, companion tag, updated metrics, log details)
+    Note over Player: Play spoken audio reply (TTS) using Web Speech API<br/>(if Voice Output is enabled, using selected gender/voice)
 ```
 
 ---
