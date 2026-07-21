@@ -312,6 +312,10 @@ def regenerate_data(request: RegenerateRequest):
             raise Exception(result.stderr)
             
         logger.info("Spanner data regenerated successfully.")
+        # Reset the connection pool in the parent process to avoid cached DDL metadata issues
+        SpannerClient._database = None
+        SpannerClient._instance = None
+        SpannerClient._spanner_client = None
         return {"status": "success", "message": "Database successfully re-seeded and regenerated."}
     except Exception as e:
         logger.error(f"Failed to regenerate data: {e}")
